@@ -1,76 +1,121 @@
 #include <Arduino.h>
-
-// Example testing sketch for various DHT humidity/temperature sensors
-// Written by ladyada, public domain
-
-// REQUIRES the following Arduino libraries:
-// - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
-// - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
-
+#include <WiFi.h>
+#include <ArduinoHA.h>
 #include "DHT.h"
 
-#define DHTPIN 23     // Digital pin connected to the DHT sensor
-// Feather HUZZAH ESP8266 note: use pins 3, 4, 5, 12, 13 or 14 --
-// Pin 15 can work but DHT must be disconnected during program upload.
+// WiFi Configuration
+#define WIFI_SSID       "550W"
+#define WIFI_PASSWORD   "12345678"
 
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11   // DHT 11
-// #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-//#define DHTTYPE DHT21   // DHT 21 (AM2301)
+// MQTT Broker Configuration (Home Assistant IP Address)
+#define BROKER_ADDR     IPAddress(10,210,235,170)  // Change to your HA server IP
+#define BROKER_PORT     1883
 
-// Connect pin 1 (on the left) of the sensor to +5V
-// NOTE: If using a board with 3.3V logic like an Arduino Due connect pin 1
-// to 3.3V instead of 5V!
-// Connect pin 2 of the sensor to whatever your DHTPIN is
-// Connect pin 3 (on the right) of the sensor to GROUND (if your sensor has 3 pins)
-// Connect pin 4 (on the right) of the sensor to GROUND and leave the pin 3 EMPTY (if your sensor has 4 pins)
-// Connect a 10K resistor from pin 2 (data) to pin 1 (power) of the sensor
+// DHT Sensor Configuration
+#define DHTPIN 23
+#define DHTTYPE DHT11
 
-// Initialize DHT sensor.
-// Note that older versions of this library took an optional third parameter to
-// tweak the timings for faster processors.  This parameter is no longer needed
-// as the current DHT reading algorithm adjusts itself to work on faster procs.
+// LED Configuration (Optional, for status indication)
+#define LED_PIN 2
+
 DHT dht(DHTPIN, DHTTYPE);
+WiFiClient client;
+HADevice device;
+HAMqtt mqtt(client, device, BROKER_PORT);
+
+// Home Assistant Devices
+HASensor temperature("plant_temp");
+HASensor humidity("plant_humidity");
+HASwitch led("plant_led");
+
+// Timer Variables
+unsigned long lastSensorRead = 0;
+const unsigned long sensorInterval = 30000; // Read sensor every 30 seconds
+
+void onSwitchCommand(bool state, HASwitch* sender) {
+    digitalWrite(LED_PIN, state ? HIGH : LOW);
+    sender->setState(state);
+    Serial.println(state ? "LED ON" : "LED OFF");
+}
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println(F("DHTxx test!"));
+    Serial.begin(115200);
+    Serial.println("Starting Plant Monitor System...");
 
-  dht.begin();
+    // Initialize LED pin
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
+
+    // Initialize DHT sensor
+    dht.begin();
+
+    // Connect to WiFi
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println();
+    Serial.println("WiFi connected successfully!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    // Set device unique ID
+    byte mac[6];
+    WiFi.macAddress(mac);
+    device.setUniqueId(mac, sizeof(mac));
+
+    // Set device information
+    device.setName("Plant Monitor");
+    device.setSoftwareVersion("1.0.0");
+    device.setManufacturer("DIY");
+    device.setModel("ESP32-Plant-Monitor");
+
+    // Configure temperature sensor
+    temperature.setDeviceClass("temperature");
+    temperature.setName("Plant Temperature");
+    temperature.setUnitOfMeasurement("°C");
+    temperature.setIcon("mdi:thermometer");
+
+    // Configure humidity sensor
+    humidity.setDeviceClass("humidity");
+    humidity.setName("Plant Humidity");
+    humidity.setUnitOfMeasurement("%");
+    humidity.setIcon("mdi:water-percent");
+
+    // Configure LED switch
+    led.setName("Status LED");
+    led.setIcon("mdi:led-on");
+    led.onCommand(onSwitchCommand);
+
+    // Connect to MQTT (with authentication)
+    mqtt.begin(BROKER_ADDR, "mqtt-user", "your-mqtt-password");
+    Serial.println("MQTT connection initialized");
 }
 
 void loop() {
-  // Wait a few seconds between measurements.
-  delay(2000);
+    mqtt.loop();
 
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-  // Read temperature as Celsius (the default)
-  float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
+    // Read sensor data periodically
+    if (millis() - lastSensorRead >= sensorInterval) {
+        lastSensorRead = millis();
+        
+        float h = dht.readHumidity();
+        float t = dht.readTemperature();
 
-  // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
-    return;
-  }
+        if (!isnan(h) && !isnan(t)) {
+            // Send data to Home Assistant
+            temperature.setValue(String(t, 2).c_str());
+            humidity.setValue(String(h, 2).c_str());
+            
+            Serial.printf("Temperature: %.2f°C, Humidity: %.2f%%\n", t, h);
+            
 
-  // Compute heat index in Fahrenheit (the default)
-  float hif = dht.computeHeatIndex(f, h);
-  // Compute heat index in Celsius (isFahreheit = false)
-  float hic = dht.computeHeatIndex(t, h, false);
+        } else {
+            Serial.println("Failed to read from DHT sensor!");
+        }
+    }
 
-  Serial.print(F("Humidity: "));
-  Serial.print(h);
-  Serial.print(F("%  Temperature: "));
-  Serial.print(t);
-  Serial.print(F("°C "));
-  Serial.print(f);
-  Serial.print(F("°F  Heat index: "));
-  Serial.print(hic);
-  Serial.print(F("°C "));
-  Serial.print(hif);
-  Serial.println(F("°F"));
+    delay(100);
 }
