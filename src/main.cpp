@@ -4,12 +4,14 @@
 #include "DHT.h"
 
 // WiFi Configuration
-#define WIFI_SSID       "550W"
-#define WIFI_PASSWORD   "12345678"
+#define WIFI_SSID       "Xamklab"
+#define WIFI_PASSWORD   "studentXAMK"
 
 // MQTT Broker Configuration (Home Assistant IP Address)
-#define BROKER_ADDR     IPAddress(10,210,235,170)  // Change to your HA server IP
+#define BROKER_ADDR     IPAddress(172,20,53,121)  // Change to your HA server IP
 #define BROKER_PORT     1883
+#define BROKER_USER     "group1"
+#define BROKER_PASS     "group1_passwd"
 
 // DHT Sensor Configuration
 #define DHTPIN 23
@@ -90,7 +92,7 @@ void setup() {
     led.onCommand(onSwitchCommand);
 
     // Connect to MQTT (with authentication)
-    mqtt.begin(BROKER_ADDR, "mqtt-user", "your-mqtt-password");
+    mqtt.begin(BROKER_ADDR, BROKER_USER, BROKER_PASS);
     Serial.println("MQTT connection initialized");
 }
 
