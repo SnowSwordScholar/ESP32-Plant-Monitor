@@ -1,7 +1,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoHA.h>
-#include "DHT.h"
+#include <cstdio>
+#include "SoilMoistureSensor.h"
 
 // WiFi Configuration
 #define WIFI_SSID       "Xamklab"
@@ -13,21 +14,19 @@
 #define BROKER_USER     "group1"
 #define BROKER_PASS     "group1_passwd"
 
-// DHT Sensor Configuration
-#define DHTPIN 23
-#define DHTTYPE DHT11
+// Soil moisture sensor configuration
+constexpr uint8_t SOIL_ADC_PIN = 34;
 
 // LED Configuration (Optional, for status indication)
 #define LED_PIN 2
 
-DHT dht(DHTPIN, DHTTYPE);
+SoilMoistureSensor soilSensor(SOIL_ADC_PIN);
 WiFiClient client;
 HADevice device;
 HAMqtt mqtt(client, device, BROKER_PORT);
 
 // Home Assistant Devices
-HASensor temperature("plant_temp");
-HASensor humidity("plant_humidity");
+HASensor soilMoisture("plant_soil_moisture");
 HASwitch led("plant_led");
 
 // Timer Variables
@@ -48,8 +47,8 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 
-    // Initialize DHT sensor
-    dht.begin();
+    // Initialize soil moisture sensor
+    soilSensor.begin();
 
     // Connect to WiFi
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -74,17 +73,11 @@ void setup() {
     device.setManufacturer("DIY");
     device.setModel("ESP32-Plant-Monitor");
 
-    // Configure temperature sensor
-    temperature.setDeviceClass("temperature");
-    temperature.setName("Plant Temperature");
-    temperature.setUnitOfMeasurement("°C");
-    temperature.setIcon("mdi:thermometer");
-
-    // Configure humidity sensor
-    humidity.setDeviceClass("humidity");
-    humidity.setName("Plant Humidity");
-    humidity.setUnitOfMeasurement("%");
-    humidity.setIcon("mdi:water-percent");
+    // Configure soil moisture sensor entity
+    soilMoisture.setDeviceClass("moisture");
+    soilMoisture.setName("Plant Soil Moisture");
+    soilMoisture.setUnitOfMeasurement("%");
+    soilMoisture.setIcon("mdi:water");
 
     // Configure LED switch
     led.setName("Status LED");
@@ -103,20 +96,12 @@ void loop() {
     if (millis() - lastSensorRead >= sensorInterval) {
         lastSensorRead = millis();
         
-        float h = dht.readHumidity();
-        float t = dht.readTemperature();
+    const SoilMoistureReading reading = soilSensor.sample();
+    char moisturePayload[8];
+    snprintf(moisturePayload, sizeof(moisturePayload), "%.1f", reading.percent);
+    soilMoisture.setValue(moisturePayload);
 
-        if (!isnan(h) && !isnan(t)) {
-            // Send data to Home Assistant
-            temperature.setValue(String(t, 2).c_str());
-            humidity.setValue(String(h, 2).c_str());
-            
-            Serial.printf("Temperature: %.2f°C, Humidity: %.2f%%\n", t, h);
-            
-
-        } else {
-            Serial.println("Failed to read from DHT sensor!");
-        }
+    Serial.printf("Soil moisture: %.2f%% (raw %u, %.3f V)\n", reading.percent, reading.raw, reading.voltage);
     }
 
     delay(100);
