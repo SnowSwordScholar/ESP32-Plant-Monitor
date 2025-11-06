@@ -4,15 +4,33 @@
 #include <cstdio>
 #include "SoilMoistureSensor.h"
 
-// WiFi Configuration
-#define WIFI_SSID       "Xamklab"
-#define WIFI_PASSWORD   "studentXAMK"
+// Config: credentials and broker settings
+#if defined(__has_include)
+#  if __has_include("config.h")
+#    include "config.h"
+#  endif
+#endif
 
-// MQTT Broker Configuration (Home Assistant IP Address)
-#define BROKER_ADDR     IPAddress(172,20,53,121)  // Change to your HA server IP
+// Fallback defaults (used when src/config.h is not present)
+#ifndef WIFI_SSID
+#define WIFI_SSID       "YOUR_WIFI_SSID"
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD   "YOUR_WIFI_PASSWORD"
+#endif
+
+#ifndef BROKER_ADDR
+#define BROKER_ADDR     IPAddress(192,168,1,100)
+#endif
+#ifndef BROKER_PORT
 #define BROKER_PORT     1883
-#define BROKER_USER     "group1"
-#define BROKER_PASS     "group1_passwd"
+#endif
+#ifndef BROKER_USER
+#define BROKER_USER     "mqtt_user"
+#endif
+#ifndef BROKER_PASS
+#define BROKER_PASS     "mqtt_password"
+#endif
 
 // Soil moisture sensor configuration
 constexpr uint8_t SOIL_ADC_PIN = 34;
@@ -34,7 +52,7 @@ HASwitch pump("plant_pump");
 
 // Timer Variables
 unsigned long lastSensorRead = 0;
-const unsigned long sensorInterval = 30000; // Read sensor every 30 seconds
+const unsigned long sensorInterval = 1000; // Read sensor every 1 second
 
 void onSwitchCommand(bool state, HASwitch* sender) {
     digitalWrite(LED_PIN, state ? HIGH : LOW);
@@ -44,7 +62,7 @@ void onSwitchCommand(bool state, HASwitch* sender) {
 
 void onPumpCommand(bool state, HASwitch* sender) {
     // HIGH = pump on, LOW = pump off
-    digitalWrite(PUMP_PIN, state ? HIGH : LOW);
+    digitalWrite(PUMP_PIN, state ? LOW : HIGH);
     sender->setState(state);
     Serial.println(state ? "Pump ON" : "Pump OFF");
 }
@@ -59,7 +77,7 @@ void setup() {
 
     // Initialize pump control pin (GPIO32)
     pinMode(PUMP_PIN, OUTPUT);
-    digitalWrite(PUMP_PIN, LOW); // ensure pump is off at boot
+    digitalWrite(PUMP_PIN, HIGH); // ensure pump is off at boot
 
     // Initialize soil moisture sensor
     soilSensor.begin();

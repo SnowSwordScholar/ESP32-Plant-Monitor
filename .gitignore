@@ -3,3 +3,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Local config containing secrets - keep out of git
+src/config.h
+config.h
+.env
+*.env
