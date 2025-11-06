@@ -1,7 +1,6 @@
 # ESP32 Plant Monitor (Plant Care Device)
 
-> English README — also available in Chinese: `README.zh.md`
-
+> English README — also available in Chinese: [README.zh.md](README.zh.md)
 ---
 
 ## What this project is
@@ -9,7 +8,7 @@
 This is a small plant care device based on an ESP32. It measures soil moisture using an analog soil sensor and can drive a water pump (via a relay or MOSFET) to water the plant. The device integrates with Home Assistant (via MQTT) and exposes:
 
 - A soil moisture sensor (0–100 %)
-- A pump switch (manual/remote control)
+- A pump switch
 - A status LED switch
 
 ![Home Assistant Example:](image/screenshot.png)
