@@ -68,9 +68,9 @@ void setup() {
     device.setUniqueId(mac, sizeof(mac));
 
     // Set device information
-    device.setName("Plant Monitor");
-    device.setSoftwareVersion("1.0.0");
-    device.setManufacturer("DIY");
+    device.setName("Group1 Plant Monitor");
+    device.setSoftwareVersion("1.0.1");
+    device.setManufacturer("Group1");
     device.setModel("ESP32-Plant-Monitor");
 
     // Configure soil moisture sensor entity
