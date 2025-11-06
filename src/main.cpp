@@ -19,6 +19,8 @@ constexpr uint8_t SOIL_ADC_PIN = 34;
 
 // LED Configuration (Optional, for status indication)
 #define LED_PIN 2
+// Water pump control pin (GPIO32)
+#define PUMP_PIN 32
 
 SoilMoistureSensor soilSensor(SOIL_ADC_PIN);
 WiFiClient client;
@@ -28,6 +30,7 @@ HAMqtt mqtt(client, device, BROKER_PORT);
 // Home Assistant Devices
 HASensor soilMoisture("plant_soil_moisture");
 HASwitch led("plant_led");
+HASwitch pump("plant_pump");
 
 // Timer Variables
 unsigned long lastSensorRead = 0;
@@ -39,6 +42,13 @@ void onSwitchCommand(bool state, HASwitch* sender) {
     Serial.println(state ? "LED ON" : "LED OFF");
 }
 
+void onPumpCommand(bool state, HASwitch* sender) {
+    // HIGH = pump on, LOW = pump off
+    digitalWrite(PUMP_PIN, state ? HIGH : LOW);
+    sender->setState(state);
+    Serial.println(state ? "Pump ON" : "Pump OFF");
+}
+
 void setup() {
     Serial.begin(115200);
     Serial.println("Starting Plant Monitor System...");
@@ -46,6 +56,10 @@ void setup() {
     // Initialize LED pin
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
+
+    // Initialize pump control pin (GPIO32)
+    pinMode(PUMP_PIN, OUTPUT);
+    digitalWrite(PUMP_PIN, LOW); // ensure pump is off at boot
 
     // Initialize soil moisture sensor
     soilSensor.begin();
@@ -83,6 +97,11 @@ void setup() {
     led.setName("Status LED");
     led.setIcon("mdi:led-on");
     led.onCommand(onSwitchCommand);
+
+    // Configure pump switch (exposed to Home Assistant for manual control)
+    pump.setName("Water Pump");
+    pump.setIcon("mdi:water-pump");
+    pump.onCommand(onPumpCommand);
 
     // Connect to MQTT (with authentication)
     mqtt.begin(BROKER_ADDR, BROKER_USER, BROKER_PASS);
